@@ -33,8 +33,8 @@ def login_required(func):
 
 
 class Client:
-    def __init__(self):
-        self.driver = Driver(uc=True, headless=False)
+    def __init__(self, headless=False):
+        self.driver = Driver(uc=True, headless=headless)
         self.logged_in = False
 
         logger.info(f'client launching {BASE_URL}')
@@ -75,7 +75,7 @@ class Client:
 
         self.logged_in = True
 
-    def fetch_post(self, url: str, body: str) -> any:
+    def fetch_post(self, url: str, body: str):
         csrf = '"x-csrftoken": "' + self.driver.get_cookie('csrftoken')['value'] + '"' if self.logged_in else ''
         script = f"""
         var url = arguments[0];
@@ -157,7 +157,7 @@ class Client:
         return self.fetch_post(f'{BASE_URL}/problems/sudoku-solver/submit/', f'{{\\"lang\\":\\"{lang}\\",\\"question_id\\":\\"{question_id}\\",\\"typed_code\\":\\"{source_code}\\"}}')['submission_id']
 
     @login_required
-    def get_submission_details(self, submission_id: int) -> str:
+    def get_submission_details(self, submission_id: int):
         return self.fetch_get(f'{BASE_URL}/submissions/detail/{submission_id}/check/')
     
     @login_required
