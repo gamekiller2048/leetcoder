@@ -4,7 +4,6 @@
 ### Example of an automated bot that solves the daily leetcode by copying solutions:
 ```python
 import leetcoder
-import time
 import logging
 
 # setup logging
@@ -16,7 +15,7 @@ client.login("[USERNAME]", "[PASSWORD]")
 
 def get_daily_problem_data():
     # retrive the daily problem
-    problem_data = client.get_problem_details('reverse-string')
+    problem_data = client.get_daily_problem()
     question_data = problem_data['question']
 
     print(f"found daily problem: {question_data['questionTitle']}\nInstructions:\n{question_data['content']}")
