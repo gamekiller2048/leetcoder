@@ -5,7 +5,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from seleniumbase import Driver
 import time
 import logging
-import lxml.html
+import json
 
 
 logger = logging.getLogger(__name__)
@@ -13,15 +13,15 @@ logger = logging.getLogger(__name__)
 BASE_URL = 'https://leetcode.com'
 
 OrderBy = Literal['MOST_VOTES', "MOST_RECENT", "HOT"]
-Lang = Literal['cpp', 'java', 'python3', 'python', 'c', 'csharp', 'javascript', 'typescript', 'php', 'kotlin', 'swift', 'dart', 'go', 'ruby', 'scala', 'rust']
-ProblemType = Literal[
+LangSlug = Literal['cpp', 'java', 'python3', 'python', 'c', 'csharp', 'javascript', 'typescript', 'php', 'kotlin', 'swift', 'dart', 'go', 'ruby', 'scala', 'rust']
+ProblemTypeSlug = Literal[
     'backtracking', 'recursion', 'matrix', 'array', 'hash-table', 'depth-first-search', 
     'bit-manipulation', 'bitmask', 'ordered-set', 'stack', 'dynamic-programming', 
     'math', 'string', 'iterator', 'greedy', 'memoization', 'heap-(priority-queue)', 
     'sorting', 'interactive', 'breadth-first-search', 'tree', 'queue', 'combinatorics', 
     'linked-list', 'hash-function', 'graph', 'enumeration', 'suffix-array', 'brainteaser', 
     'number-theory', 'game-theory', 'simulation']
-Tag = Union[Lang | ProblemType]
+Tag = Union[LangSlug | ProblemTypeSlug]
 
 def login_required(func):
     def wrapper(self, *args, **kwargs):
@@ -29,7 +29,6 @@ def login_required(func):
             raise Exception('client must be logged in to call method')
         return func(self, *args, **kwargs)
     return wrapper
-
 
 
 class Client:
@@ -75,7 +74,11 @@ class Client:
 
         self.logged_in = True
 
-    def fetch_post(self, url: str, body: str):
+    def fetch_post(self, url: str, body: Union[str | dict]):
+        if type(body) == dict: 
+            body = json.dumps(body)
+            body = body.replace('"', '\\"')
+
         csrf = '"x-csrftoken": "' + self.driver.get_cookie('csrftoken')['value'] + '"' if self.logged_in else ''
         script = f"""
         var url = arguments[0];
@@ -102,10 +105,8 @@ class Client:
         }});
         """
 
-        print(script)
-        
         data = self.driver.execute_async_script(script)
-        logger.info(f'POST at {url} recieved:\n{data}')
+        # logger.info(f'POST at {url} recieved:\n{data}')
         return data
     
     def fetch_get(self, url: str):
@@ -135,53 +136,125 @@ class Client:
         """
 
         data = self.driver.execute_async_script(script)
-        logger.info(f'GET at {url} recieved:\n{data}')
+        # logger.info(f'GET at {url} recieved:\n{data}')
         return data
 
-    def fetch_graphql(self, body: str):
-        return self.fetch_post(f'{BASE_URL}/graphql', body)
+    def fetch_graphql(self, query: str, variables: dict, operation_name: str):
+        return self.fetch_post(f'{BASE_URL}/graphql', {
+            'query': query.replace('\n', '\\n'),
+            'variables': variables,
+            'operation_name': operation_name
+        })
 
-    def get_question_of_today(self):
-        return self.fetch_graphql('{\\"query\\":\\"\\\\n    query questionOfToday {\\\\n  activeDailyCodingChallengeQuestion {\\\\n    date\\\\n    userStatus\\\\n    link\\\\n    question {\\\\n      titleSlug\\\\n      title\\\\n      translatedTitle\\\\n      acRate\\\\n      difficulty\\\\n      freqBar\\\\n      frontendQuestionId: questionFrontendId\\\\n      isFavor\\\\n      paidOnly: isPaidOnly\\\\n      status\\\\n      hasVideoSolution\\\\n      hasSolution\\\\n      topicTags {\\\\n        name\\\\n        id\\\\n        slug\\\\n      }\\\\n    }\\\\n  }\\\\n}\\\\n    \\",\\"variables\\":{},\\"operationName\\":\\"questionOfToday\\"}')['data']['activeDailyCodingChallengeQuestion']
-    
     def get_solution_articles(self, question_slug: str, order_by: OrderBy, tag_slugs: list[Tag], skip: int, first: int, user_input: str = ""):
-        tag_slugs_formatted = str(tag_slugs).replace("'", '\\"')
-        return self.fetch_graphql(f'{{\\"query\\":\\"\\\\n    query ugcArticleSolutionArticles($questionSlug: String!, $orderBy: ArticleOrderByEnum, $userInput: String, $tagSlugs: [String!], $skip: Int, $before: String, $after: String, $first: Int, $last: Int, $isMine: Boolean) {{\\\\n  ugcArticleSolutionArticles(\\\\n    questionSlug: $questionSlug\\\\n    orderBy: $orderBy\\\\n    userInput: $userInput\\\\n    tagSlugs: $tagSlugs\\\\n    skip: $skip\\\\n    first: $first\\\\n    before: $before\\\\n    after: $after\\\\n    last: $last\\\\n    isMine: $isMine\\\\n  ) {{\\\\n    totalNum\\\\n    pageInfo {{\\\\n      hasNextPage\\\\n    }}\\\\n    edges {{\\\\n      node {{\\\\n        ...ugcSolutionArticleFragment\\\\n      }}\\\\n    }}\\\\n  }}\\\\n}}\\\\n    \\\\n    fragment ugcSolutionArticleFragment on SolutionArticleNode {{\\\\n  uuid\\\\n  title\\\\n  slug\\\\n  summary\\\\n  author {{\\\\n    realName\\\\n    userAvatar\\\\n    userSlug\\\\n    userName\\\\n    nameColor\\\\n    certificationLevel\\\\n    activeBadge {{\\\\n      icon\\\\n      displayName\\\\n    }}\\\\n  }}\\\\n  articleType\\\\n  thumbnail\\\\n  summary\\\\n  createdAt\\\\n  updatedAt\\\\n  status\\\\n  isLeetcode\\\\n  canSee\\\\n  canEdit\\\\n  isMyFavorite\\\\n  chargeType\\\\n  myReactionType\\\\n  topicId\\\\n  hitCount\\\\n  hasVideoArticle\\\\n  reactions {{\\\\n    count\\\\n    reactionType\\\\n  }}\\\\n  title\\\\n  slug\\\\n  tags {{\\\\n    name\\\\n    slug\\\\n    tagType\\\\n  }}\\\\n  topic {{\\\\n    id\\\\n    topLevelCommentCount\\\\n  }}\\\\n}}\\\\n    \\",\\"variables\\":{{\\"questionSlug\\":\\"{question_slug}\\",\\"skip\\":{skip},\\"first\\":{first},\\"orderBy\\":\\"{order_by}\\",\\"userInput\\":\\"{user_input}\\",\\"tagSlugs\\":{tag_slugs_formatted}}},\\"operationName\\":\\"ugcArticleSolutionArticles\\"}}')['data']['ugcArticleSolutionArticles']
+        return self.fetch_graphql(
+            """
+            query ugcArticleSolutionArticles(
+                $questionSlug: String!,
+                $orderBy: ArticleOrderByEnum,
+                $userInput: String,
+                $tagSlugs: [String!],
+                $skip: Int,
+                $before: String,
+                $after: String,
+                $first: Int,
+                $last: Int,
+                $isMine: Boolean
+            ) {
+                ugcArticleSolutionArticles(
+                    questionSlug: $questionSlug
+                    orderBy: $orderBy
+                    userInput: $userInput
+                    tagSlugs: $tagSlugs
+                    skip: $skip
+                    first: $first
+                    before: $before
+                    after: $after
+                    last: $last
+                    isMine: $isMine
+                ) {
+                    totalNum
+                    edges {
+                        node { 
+                            slug
+                            canSee
+                            topicId 
+                        }
+                    }
+                }
+            }
+            """,
+            {
+                'questionSlug': question_slug,
+                'skip': skip,
+                'first': first,
+                'orderBy': order_by,
+                'userInput': user_input,
+                'tagSlugs': tag_slugs
+            },
+            'ugcArticleSolutionArticles'
+        )['data']['ugcArticleSolutionArticles']
 
-    def get_question_details(self, title_slug: str):
-        return self.fetch_graphql(f'{{\\"query\\":\\"\\\\n    query questionDetail($titleSlug: String!) {{\\\\n  languageList {{\\\\n    id\\\\n    name\\\\n  }}\\\\n  submittableLanguageList {{\\\\n    id\\\\n    name\\\\n    verboseName\\\\n  }}\\\\n  statusList {{\\\\n    id\\\\n    name\\\\n  }}\\\\n  questionDiscussionTopic(questionSlug: $titleSlug) {{\\\\n    id\\\\n    commentCount\\\\n    topLevelCommentCount\\\\n  }}\\\\n  ugcArticleOfficialSolutionArticle(questionSlug: $titleSlug) {{\\\\n    uuid\\\\n    chargeType\\\\n    canSee\\\\n    hasVideoArticle\\\\n  }}\\\\n  question(titleSlug: $titleSlug) {{\\\\n    title\\\\n    titleSlug\\\\n    questionId\\\\n    questionFrontendId\\\\n    questionTitle\\\\n    translatedTitle\\\\n    content\\\\n    translatedContent\\\\n    categoryTitle\\\\n    difficulty\\\\n    stats\\\\n    companyTagStatsV2\\\\n    topicTags {{\\\\n      name\\\\n      slug\\\\n      translatedName\\\\n    }}\\\\n    similarQuestionList {{\\\\n      difficulty\\\\n      titleSlug\\\\n      title\\\\n      translatedTitle\\\\n      isPaidOnly\\\\n    }}\\\\n    mysqlSchemas\\\\n    dataSchemas\\\\n    frontendPreviews\\\\n    likes\\\\n    dislikes\\\\n    isPaidOnly\\\\n    status\\\\n    canSeeQuestion\\\\n    enableTestMode\\\\n    metaData\\\\n    enableRunCode\\\\n    enableSubmit\\\\n    enableDebugger\\\\n    envInfo\\\\n    isLiked\\\\n    nextChallenges {{\\\\n      difficulty\\\\n      title\\\\n      titleSlug\\\\n      questionFrontendId\\\\n    }}\\\\n    libraryUrl\\\\n    adminUrl\\\\n    hints\\\\n    codeSnippets {{\\\\n      code\\\\n      lang\\\\n      langSlug\\\\n    }}\\\\n    exampleTestcaseList\\\\n    hasFrontendPreview\\\\n    featuredContests {{\\\\n      titleSlug\\\\n      title\\\\n    }}\\\\n  }}\\\\n}}\\\\n    \\",\\"variables\\":{{\\"titleSlug\\":\\"{title_slug}\\"}},\\"operationName\\":\\"questionDetail\\"}}')['data']
+    def get_problem_details(self, title_slug: str):
+        return self.fetch_graphql(
+            """
+            query questionDetail($titleSlug: String!) {
+                submittableLanguageList { name }
+                question(titleSlug: $titleSlug) {
+                    questionId
+                    questionTitle
+                    content
+                    isPaidOnly
+                    enableRunCode
+                    enableSubmit
+                    codeSnippets { code langSlug }
+                    titleSlug
+                }
+            }
+            """,
+            {'titleSlug': title_slug},
+            'questionDetail'
+            )['data']
     
-    @login_required
-    def submit(self, lang: Lang, source_code: str, question_id: int) -> int:
-        source_code = source_code.replace('\n', '\\\\n').replace('"', '\\\\\\"')
-        return self.fetch_post(f'{BASE_URL}/problems/sudoku-solver/submit/', f'{{\\"lang\\":\\"{lang}\\",\\"question_id\\":\\"{question_id}\\",\\"typed_code\\":\\"{source_code}\\"}}')['submission_id']
+
+    def submit(self, lang: LangSlug, source_code: str, question_id: int) -> int:
+        source_code = source_code.replace('\n', r'\\n').replace('"', r'\\\"')
+        return self.fetch_post(f'{BASE_URL}/problems/sudoku-solver/submit/', f"""
+        {{
+            \\"lang\\": \\"{lang}\\",
+            \\"question_id\\": \\"{question_id}\\",
+            \\"typed_code\\": \\"{source_code}\\"
+        }}""".replace('\n', '\\n'))['submission_id']
 
     @login_required
     def get_submission_details(self, submission_id: int):
         return self.fetch_get(f'{BASE_URL}/submissions/detail/{submission_id}/check/')
     
-    @login_required
-    def open_daily_question(self) -> tuple[int, str]:
-        logger.info('fetching daily problem')
-        data = self.get_question_of_today()
+    def get_daily_problem(self) -> dict:
+        logger.info('retrieving daily problem')
 
-        daily_path = data['link']
-        daily_url = BASE_URL + daily_path
-        logger.info('found daily problem URL: ' + daily_url)
+        title_slug = self.fetch_graphql("""
+            query questionOfToday {
+                activeDailyCodingChallengeQuestion {
+                    question { 
+                        titleSlug
+                    }
+                }
+            }
+            """,
+            {},
+            'questionOfToday'
+        )['data']['activeDailyCodingChallengeQuestion']['question']['titleSlug']
         
-        logger.info('opening daily problem page')
-        self.driver.get(daily_url)
-
-        logging.info('retrieving title')
-        title = self.wait_for_element((By.CSS_SELECTOR, f'[href="{daily_path}"]')).get_attribute('innerHTML')
+        logger.info(f'found daily problem: {title_slug}\nretrieving more details')
+        return self.get_problem_details(title_slug)
         
-        logging.info('found title: ' + title)
+    def open_solution_article(self, question_slug, solution_slug: str, topic_id: int, solution_lang_filter: list[LangSlug] = [], max_solutions: int = -1):
+        logging.warning('this function is error prone as it relies on style tags')
 
-        question_id = int(title.split('.')[0])
-        return question_id, data['question']['titleSlug']
-    
-    def open_solution_article(self, question_slug, solution_slug: str, topic_id: int, solution_lang_filter: list[Lang] = [], max_solutions: int = -1):
-        self.driver.get(f'{BASE_URL}/problems/{question_slug}/solutions/{topic_id}/{solution_slug}')
+        url = f'{BASE_URL}/problems/{question_slug}/solutions/{topic_id}/{solution_slug}'
+        logger.info(f'opening solution article page: ' + url)
+        self.driver.get(url)
 
         logger.info('waiting on solution (hot fix: wait 3s)')
         time.sleep(3)
@@ -219,14 +292,7 @@ class Client:
                     keywords = line.find_elements(By.XPATH, './span')
 
                     for keyword in keywords:
-                        text = keyword.get_attribute('innerHTML')
-
-                        if text.strip():
-                            left_spaces = len(text) - len(text.lstrip())
-                            right_spaces = len(text) - len(text.rstrip())
-                            source_code += left_spaces * ' ' + lxml.html.fromstring(text).text_content() + right_spaces * ' '
-                        else:
-                            source_code += text
+                        source_code += keyword.get_attribute('innerText')
 
                 solution[l] = source_code
             
