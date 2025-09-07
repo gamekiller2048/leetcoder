@@ -111,6 +111,10 @@ class Client:
 
         logger.debug(script)
         data = self.driver.execute_async_script(script)
+
+        if 'error' in data:
+            raise Exception(f'POST Error at {url}: {data}')
+
         logger.debug(f'POST at {url} recieved:\n{data}')
         return data
     
@@ -142,6 +146,10 @@ class Client:
 
         logger.debug(script)
         data = self.driver.execute_async_script(script)
+
+        if 'error' in data:
+            raise Exception(f'GET Error at {url}: {data}')
+
         logger.debug(f'GET at {url} recieved:\n{data}')
         return data
 
