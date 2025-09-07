@@ -6,7 +6,7 @@ from seleniumbase import Driver
 import time
 import logging
 import json
-
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +32,16 @@ def login_required(func):
 
 
 class Client:
-    def __init__(self, headless=False):
-        self.driver = Driver(uc=True, headless=headless)
+    def __init__(self, headless=False, user_data_dir=os.getcwd() + '/UserData'):
+        self.driver = Driver(uc=True, headless=headless, user_data_dir=user_data_dir)
         self.logged_in = False
 
         logger.info(f'client launching {BASE_URL}')
         self.driver.uc_open(BASE_URL)
+
+        if self.driver.get_cookie('csrftoken'):
+            self.logged_in = True
+            logger.info('logged in as: ' + self.driver.execute_script('return window.LeetCodeData.userStatus.username'))
 
     def quit(self):
         self.driver.quit()
@@ -105,8 +109,9 @@ class Client:
         }});
         """
 
+        logger.debug(script)
         data = self.driver.execute_async_script(script)
-        # logger.info(f'POST at {url} recieved:\n{data}')
+        logger.debug(f'POST at {url} recieved:\n{data}')
         return data
     
     def fetch_get(self, url: str):
@@ -135,8 +140,9 @@ class Client:
         }});
         """
 
+        logger.debug(script)
         data = self.driver.execute_async_script(script)
-        # logger.info(f'GET at {url} recieved:\n{data}')
+        logger.debug(f'GET at {url} recieved:\n{data}')
         return data
 
     def fetch_graphql(self, query: str, variables: dict, operation_name: str):
@@ -259,9 +265,9 @@ class Client:
         logger.info('waiting on solution (hot fix: wait 3s)')
         time.sleep(3)
 
-        logging.info('finding possible solutions')
+        logging.debug('finding possible solutions')
         solution_elements = self.driver.find_elements(By.XPATH, '//div[@class="border-gray-3 dark:border-dark-gray-3 mb-6 overflow-hidden rounded-lg border text-sm"]')
-        logging.info(f'found {len(solution_elements)} possible solutions')
+        logging.debug(f'found {len(solution_elements)} possible solutions')
 
         possible_solutions = []
 
@@ -269,7 +275,7 @@ class Client:
             if max_solutions != -1 and len(possible_solutions) >= max_solutions:
                 break
             
-            logging.info(f'reading possible solution #{len(possible_solutions)}')
+            logging.debug(f'reading possible solution #{len(possible_solutions)}')
 
             langs_contianer = el.find_element(By.XPATH, "./div")
             langs = langs_contianer.find_elements(By.XPATH, "./div")
@@ -278,10 +284,10 @@ class Client:
             for lang in langs:
                 l = lang.get_attribute('innerHTML').lower().replace('c++', 'cpp').replace('c#', 'csharp')
                 if solution_lang_filter and l not in solution_lang_filter:
-                    logging.info(f'skipping {l}')
+                    logging.debug(f'skipping {l}')
                     continue
 
-                logging.info(f'reading {l}')
+                logging.debug(f'reading {l}')
                              
                 lang.click()
                 code_el = el.find_element(By.TAG_NAME, 'code')
@@ -299,6 +305,6 @@ class Client:
             if solution:
                 possible_solutions.append(solution)
             else:
-                logging.info(f'cannot find requested languages: throwing solution #{len(possible_solutions)}')
+                logging.debug(f'cannot find requested languages: throwing solution #{len(possible_solutions)}')
 
         return possible_solutions

@@ -7,15 +7,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # create a client
 client = leetcoder.Client()
-client.login("[USERNAME]", "[PASSWORD]")
+client.login('[USERNAME]', '[PASSWORD]') # this only needs to be called once initially or when session expires
 
 def get_daily_problem_data():
     # retrive the daily problem
-    problem_data = client.get_problem_details('reverse-string')
+    problem_data = client.get_daily_problem()
     question_data = problem_data['question']
 
-    print(f"found daily problem: {question_data['questionTitle']}\nInstructions:\n{question_data['content']}")
-    
     # check restrictions of problem
     if question_data['isPaidOnly']:
         raise Exception('problem is paid only')
@@ -29,7 +27,7 @@ def try_solutions(question_data: dict):
     solution_articles = client.get_solution_articles(
         question_slug=question_data['titleSlug'],
         order_by='HOT',
-        tag_slugs=['python'],
+        tag_slugs=['cpp'],
         skip=0, first=5
     )
 
@@ -43,7 +41,7 @@ def try_solutions(question_data: dict):
             question_slug=question_data['titleSlug'],
             solution_slug=article['slug'],
             topic_id=article['topicId'],
-            solution_lang_filter=['python3'],
+            solution_lang_filter=['cpp'],
             max_solutions=2
         )
 
@@ -77,8 +75,7 @@ def poll_submission(submission_id: int) -> dict:
 
     return details
 
+
 question_data = get_daily_problem_data()
 try_solutions(question_data)
-
-time.sleep(100)
 client.quit()
