@@ -12,7 +12,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # create a client
 client = leetcoder.Client()
-client.login('[USERNAME]', '[PASSWORD]') # this only needs to be called once initially or when session expires
+
+if not client.logged_in:
+    # this only needs to be called once initially or when session expires
+    client.login('[USERNAME]', '[PASSWORD]')
+
 
 def get_daily_problem_data():
     # retrive the daily problem
