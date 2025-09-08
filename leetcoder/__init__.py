@@ -230,7 +230,7 @@ class Client:
             'questionDetail'
             )['data']
     
-
+    @login_required
     def submit(self, lang: LangSlug, source_code: str, question_id: int) -> int:
         source_code = source_code.replace('\n', r'\\n').replace('"', r'\\\"')
         return self.fetch_post(f'{BASE_URL}/problems/sudoku-solver/submit/', f"""
